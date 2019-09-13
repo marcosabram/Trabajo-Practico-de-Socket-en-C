@@ -71,9 +71,9 @@ int main(void)
     handle_error("recv");
     };
   //imprimo en consola
-  printf("Bytes recibidos: %d \nMensaje: %s\n", numrcv,rcvBuffer);
-  int bytes_enviados = send(connfd, msg, strlen(msg), 0);
-  printf("Bytes enviados: %d \n", bytes_enviados);
+  printf("Bytes recibidos: %d \nMensaje: %s\n****\n****\n", numrcv,rcvBuffer);
+  int bytes_enviados = send(connfd, rcvBuffer, strlen(rcvBuffer), 0);
+  printf("Bytes enviados: %d \nMensaje: %s\n****\n****\n", bytes_enviados,rcvBuffer);
   //cierro la concexion
   close(connfd); 
   return 0;
