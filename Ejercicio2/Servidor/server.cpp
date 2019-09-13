@@ -7,37 +7,30 @@
 #include <errno.h>
 #include <string.h>
 #include <sys/types.h>
-/////
-#include<stdio.h>
-#include<stdlib.h>
 #include<string>
-#include<string.h>
-#include<sys/types.h>
-#include<sys/socket.h>
-#include<netinet/in.h>
 #include <dirent.h>
-#include <unistd.h>
 #include <utility>
 #include <map>
 #include <list>
 #include <vector>
 #include <iostream>
+
 #define handle_error(msg) \
            do { perror(msg); exit(EXIT_FAILURE); } while (0)
 
 using namespace std; 
 
 void error(const char *s);
-/* Función que hace algo con un archivo */
-long tamanioArchivo(char *archivo);
 
-long buscar (char nombreArchivo[]);
+long getSizeFile(char *archivo);
 
-void procesarArchivo(char *archivo, char *buffer);
+long searchFile (char nombreArchivo[]);
+
+void processFile(char *archivo, char *buffer);
 
 void moveToCache(char *archivo);
 
-int tamanioCache();
+int sizeCache();
 
 
 
@@ -49,7 +42,8 @@ std::list<string>::iterator l_it;
 
 int main(void)
 {
-
+  char ip[]="127.0.0.1";
+  int port=5001;
   map<string,string>::iterator it = m_cache.begin();
   l_it = mylist.begin();
 
@@ -58,8 +52,9 @@ int main(void)
   char rcvBuffer[cant]; 
   char sizeofBuffer[cant];
   int yes=1;
-  	long sizeofFile;
+  long sizeofFile;
  	char *file;
+  struct hostent *h; 
     //gido usa puntero
   /*** socket() ***/
   /*genero el socket,
@@ -72,8 +67,6 @@ int main(void)
   if(socket_fd==-1){
     handle_error("socket");
     };
-
-
     if (setsockopt(socket_fd, SOL_SOCKET, SO_REUSEADDR, &yes, sizeof(int)) == -1)
     {
         perror("setsockopt");
@@ -85,8 +78,8 @@ int main(void)
   /*esta estructura contiene informacion de nuestra direccion y puerto, etc*/
   struct sockaddr_in serv_addr,rcv;   
   serv_addr.sin_family = AF_INET;    
-  serv_addr.sin_addr.s_addr = inet_addr("127.0.0.1"); 
-  serv_addr.sin_port = htons(5001);//especificamos el puerto, con sin_port=0, bind() lo elije   
+  serv_addr.sin_addr.s_addr = inet_addr(ip); 
+  serv_addr.sin_port = htons(port);//especificamos el puerto, con sin_port=0, bind() lo elije   
 /*** bind() ***/
  /* asigna la direccion ip a el socket
  *** primer argumento es el socket
@@ -99,16 +92,15 @@ int main(void)
   if(bind(socket_fd, (struct sockaddr*)&serv_addr,sizeof(serv_addr))==-1){
     handle_error("bind");
     exit(-1);
+    }
+    else{
+     printf("Server up:\nIP: %s\nPuerto: %d\n",ip,port);
     };
 
-  moveToCache("medium.txt");
-  moveToCache("medium2.txt");
-  moveToCache("medium3.txt");
-  moveToCache("medium4.txt");
-
-
-
-
+  moveToCache("File.txt");
+  moveToCache("File2.txt");
+  moveToCache("File3.txt");
+  moveToCache("File4.txt");
   /*** listen()***/
   /* pongo a escuchar el socket */ 
 
@@ -116,7 +108,7 @@ int main(void)
     if(listen(socket_fd, 10) == -1){//acepta hasta 10 conexiones
       handle_error("listen");
       };     
-  socklen_t addr_len= sizeof(struct sockaddr_in);    
+    socklen_t addr_len= sizeof(struct sockaddr_in);    
     /*** accept() ***/
     /* acepta la conexiones etrantes */
     int connfd = accept(socket_fd,(struct sockaddr*)&rcv,&addr_len); // accept awaiting request acepta la conexion
@@ -126,22 +118,21 @@ int main(void)
     /*** recv() ***/
     /* recibe los datos y los cargar en recvBuffer, esta funcion devuleve 
       la cantidad de bytes recibidos*/
-    int numrcv = recv(connfd, rcvBuffer, strlen(rcvBuffer), 0); //calculo los cracteres recibidos
-    if(numrcv==-1){
+    //calculo los cracteres recibidos
+    if(recv(connfd, rcvBuffer, strlen(rcvBuffer), 0)==-1){
     handle_error("recv");
     };
-
-   sizeofFile=buscar(rcvBuffer);
+    cout<<"El archivo solicitado es:"<<rcvBuffer<<endl;
+   sizeofFile=searchFile(rcvBuffer);
    file=(char *)malloc(sizeofFile);
-printf(rcvBuffer);
+
     if (sizeofFile > 536870912){
       cout<<"Supera la cache, enviando desde disco..."<<endl<<endl;
-      	procesarArchivo(rcvBuffer, file);
+      	processFile(rcvBuffer, file);
       	sprintf(sizeofBuffer,"%ld", sizeofFile);
       	send(connfd, sizeofBuffer, sizeof(sizeofBuffer),0);
         cout<<"Enviando archivo "<< rcvBuffer<<endl;
         send(connfd, file, sizeofFile,0);
-        //system("@cls||clear");
         cout<<"Envio Exitoso\n"<<endl;
 
       }
@@ -159,11 +150,11 @@ printf(rcvBuffer);
         else
         {
             cout<<"El archivo no existe"<<endl;
-            send(connfd, "-1",2,0);          //'-1' sera archivo inexistente, 2 *sizeof(char).
+            send(connfd,"-1",sizeof("-1"),0);          //'-1' sera archivo inexistente, 2 *sizeof(char).
         }
       }
-
-    free(file);
+      memset(rcvBuffer, ' ', sizeof(rcvBuffer));
+      free(file);
     }while(true);
 
   close(socket_fd); 
@@ -172,8 +163,8 @@ printf(rcvBuffer);
 }
 
 
-long buscar(char nombreArchivo[]){
-  //cout<<"Entrando a buscar"<<endl;
+long searchFile(char nombreArchivo[]){
+  //cout<<"Entrando a searchFile"<<endl;
   long ftam=-1; 
 
   map<string,string>::iterator indice;
@@ -202,16 +193,16 @@ long buscar(char nombreArchivo[]){
     /* Leyendo uno a uno todos los archivos que hay */
     while (((ent = readdir (dir)) != NULL) && (ftam == -1)){    /* Nos devolverá el directorio actual (.) y el anterior (..), como hace ls */
         if ( strcmp(ent->d_name, nombreArchivo)==0){            /* Una vez tenemos el archivo, lo pasamos a una función para procesarlo. */
-          ftam=tamanioArchivo(nombreArchivo);
+          ftam=getSizeFile(nombreArchivo);
       	}
       }
     if(ftam!=-1 && ftam<536870912){
       cout<<"Encontrado en disco, moviendo a cache"<<endl;
-      if(tamanioCache()+ftam<536870913){
+      if(sizeCache()+ftam<536870913){
         moveToCache(nombreArchivo);
         }
       else{
-        int borrar=tamanioCache()+ftam-536870913;
+        int borrar=sizeCache()+ftam-536870913;
         l_it=mylist.begin();
         while(borrar>0){
           borrar=borrar-(m_cache.find(*l_it)->second).size();
@@ -234,8 +225,8 @@ void error(const char *s){
   exit(EXIT_FAILURE);
 }
 
-long tamanioArchivo(char *archivo){
-  //cout<<"Entrando a tamanioArchivo"<<endl;
+long getSizeFile(char *archivo){
+  //cout<<"Entrando a getSizeFile"<<endl;
   /* Para "procesar", o al menos, hacer algo con el archivo, vamos a decir su tamaño en bytes */
   /* para ello haremos lo que vemos aquí: https://poesiabinaria.net/2010/04/tamano-de-un-fichero-en-c/ */
   FILE *fich;
@@ -255,10 +246,10 @@ long tamanioArchivo(char *archivo){
   return ftam;
 }
 
-void procesarArchivo(char *archivo, char *buffer){
+void processFile(char *archivo, char *buffer){
   /* Para "procesar", o al menos, hacer algo con el archivo, vamos a decir su tamaño en bytes */
   /* para ello haremos lo que vemos aquí: https://poesiabinaria.net/2010/04/tamano-de-un-fichero-en-c/ */
-  //cout<<"Entrando a procesarArchivo"<<endl;
+  //cout<<"Entrando a processFile"<<endl;
   FILE *fich;
   long ftam=-1;
   char aux[50];
@@ -293,10 +284,10 @@ void moveToCache(char *archivo){
       fread(buffer,ftam,1,fich);
       m_cache[archivo]=buffer;
       mylist.push_back(archivo);
-      cout<<"Archivos en cache"<<endl;
+      /*cout<<"Archivos en cache"<<endl;
       for(l_it=mylist.begin(); l_it!=mylist.end(); ++l_it)
          std::cout << ' ' << *l_it<<endl;
-      std::cout << '\n';
+      std::cout << '\n';*/
       free(buffer);
     }
   else
@@ -305,7 +296,7 @@ void moveToCache(char *archivo){
   fclose(fich);
 }
 
-int tamanioCache(){
+int sizeCache(){
   int acum=0;
   for (map<string,string>::iterator it=m_cache.begin(); it!=m_cache.end(); ++it){
     acum=acum + (it->second).size();

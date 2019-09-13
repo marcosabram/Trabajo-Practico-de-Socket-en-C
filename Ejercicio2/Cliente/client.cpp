@@ -9,30 +9,18 @@
 #include <errno.h>
 #include <arpa/inet.h>
 
-
-#include<sys/types.h>
-#include<sys/socket.h>
-#include<netinet/in.h>
-#include<string.h>
-#include<stdio.h>
-#include<unistd.h>
-#include<stdlib.h>
-#include<arpa/inet.h>
-#include<netdb.h>
-
-
 #define handle_error(msg) \
            do { perror(msg); exit(EXIT_FAILURE); } while (0)
 
 
-void escribirArchivo(char msg[], char *buffer, long tamanio);
+void write_file(char msg[], char *buffer, long tamanio);
 
 int main(void)
 {
   /*variables para el buffer utilizado para recibir datos*/
   int cant=100;
   char rcvBuffer[cant]; 
-   char *buffer;
+  char *buffer;
   char msg[50]; 
   /*** socket() ***/
   /*genero el socket,
@@ -42,10 +30,10 @@ int main(void)
   ***0= especifica el protocolo a usar, en este caso con 0, lo elije socket() 
   genere un espacion en ipv4 con tcp y protocolo a eleccion*/
   int socket_fd=socket(AF_INET, SOCK_STREAM, 0); 
-  if(socket_fd==-1){
-    printf("Socket cannot be generated \n Ended process");
+  if(socket_fd==-1)
+  {
     handle_error("socket");
-    };
+  };
   memset(rcvBuffer, ' ', sizeof(rcvBuffer));
   //memset(msg, ' ', sizeof(msg));//limpia el buffer, si no anda cuando quiere
  /*esta estructura contiene informacion de nuestra direccion y puerto, etc*/
@@ -56,44 +44,46 @@ int main(void)
   /*** connnect() ***/
   /*realizamos la peticion al servidor, esperando que acepte nuesta conexion*/
   if(connect(socket_fd, (struct sockaddr *)&serv_addr, sizeof(serv_addr))==-1)
-    {
+  {
     handle_error("connect");
     exit(-1);
-    };
-
-   printf("Que archivo quiere recuperar?: ");
-   scanf("%s", msg);
-   long l_tamanio;
+  };
+  printf("Que archivo quiere recuperar?: ");
+  scanf("%s", msg);
+  long l_tamanio;
   /*** send() ***/
   /* enviamos un mensaje al servidor */
-  int bytes_enviados = send(socket_fd, &msg, sizeof(msg), 0);
+  if (send(socket_fd, &msg, sizeof(msg), 0) == -1)
+  {
+    handle_error("send");
+  };
   /*** recv() ***/
   /* recibe los datos y los cargar en recvBuffer, esta funcion devuleve 
      la cantidad de bytes recibidos*/
-  int numrcv = recv(socket_fd, rcvBuffer, sizeof(rcvBuffer), 0); //calculo los cracteres recibidos
-  if(numrcv==-1){
-    printf("recv failed\n");
+  if(recv(socket_fd, rcvBuffer, sizeof(rcvBuffer), 0)==-1)
+  {
     handle_error("recv");
-    };
-  if(strcmp(rcvBuffer,"-1")!=0){
+  };
+  if(strcmp(rcvBuffer,"-1")!=0)
+  {
       l_tamanio=atol(rcvBuffer);
       buffer=(char *)malloc(l_tamanio);
-      system("@cls||clear");
       recv(socket_fd, buffer, l_tamanio,0);
-      escribirArchivo(msg,buffer,l_tamanio);
+      write_file(msg,buffer,l_tamanio);
       printf("Archivo %s guardado exitosamente.\n", msg);
       free(buffer);
-   }else{
+  }else{
       printf("El archivo no existe\n");
-    }  
+  }  
   //cierro conexion
   close(socket_fd);
   return 0;
 }
 
-void escribirArchivo(char msg[], char *buffer, long tamanio){
-   FILE *fp;
-   fp = fopen (msg, "w+" );
-   fwrite( buffer, sizeof(char), tamanio, fp ); //char cadena[]... cada posición es de tamaño 'char'
-   fclose(fp);
+void write_file(char msg[], char *buffer, long tamanio)
+{
+  FILE *fp;
+  fp = fopen(msg, "w+");
+  fwrite(buffer, sizeof(char), tamanio, fp);
+  fclose(fp);
 }
