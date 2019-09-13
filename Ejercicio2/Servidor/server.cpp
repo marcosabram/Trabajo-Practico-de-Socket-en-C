@@ -57,7 +57,7 @@ int main(void)
   int cant=40;
   char rcvBuffer[cant]; 
   char sizeofBuffer[cant];
-  
+  int yes=1;
   	long sizeofFile;
  	char *file;
     //gido usa puntero
@@ -72,6 +72,13 @@ int main(void)
   if(socket_fd==-1){
     handle_error("socket");
     };
+
+
+    if (setsockopt(socket_fd, SOL_SOCKET, SO_REUSEADDR, &yes, sizeof(int)) == -1)
+    {
+        perror("setsockopt");
+        exit(1);
+    }
   //memset(&serv_addr, '0', sizeof(serv_addr)); //nose que hace
   memset(rcvBuffer, ' ', sizeof(rcvBuffer));
   memset(sizeofBuffer, ' ', sizeof(sizeofBuffer));//limpia el buffer, si no anda cuando quiere
@@ -126,7 +133,7 @@ int main(void)
 
    sizeofFile=buscar(rcvBuffer);
    file=(char *)malloc(sizeofFile);
-
+printf(rcvBuffer);
     if (sizeofFile > 536870912){
       cout<<"Supera la cache, enviando desde disco..."<<endl<<endl;
       	procesarArchivo(rcvBuffer, file);
